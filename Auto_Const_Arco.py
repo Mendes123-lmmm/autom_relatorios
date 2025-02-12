@@ -1,7 +1,6 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import openpyxl
-import xlwings as xw
 from docx import Document
 from docx.shared import Inches
 import re
@@ -43,18 +42,17 @@ if uploaded_excel and uploaded_word:
         try:
             with open(excel_path, "wb") as f:
                 f.write(uploaded_excel.getbuffer())
-            progress_bar.progress(10)
+            progress_bar.progress(10)  # Atualiza a barra de progresso
 
             with open(word_path, "wb") as f:
                 f.write(uploaded_word.getbuffer())
-            progress_bar.progress(20)
+            progress_bar.progress(20)  # Atualiza a barra de progresso
 
-            # Carregar o Excel
+            # Carregar planilhas do Excel com OpenPyXL
             wb = openpyxl.load_workbook(excel_path, data_only=True)
             sheet_cliente = wb['Cliente']
             sheet_max = wb['Específicos']
             sheet_fonte = wb['Fonte']
-            sheet_graf = wb["ChartData"]
 
             # Ler os dados das células
             data = {
@@ -68,26 +66,36 @@ if uploaded_excel and uploaded_word:
             # Formatar os valores
             for key in data:
                 data[key] = format_value(data[key])
-            progress_bar.progress(40)
+            progress_bar.progress(40)  # Atualiza a barra de progresso
 
-            # Coletar os dados do gráfico
+            # Obter dados para o gráfico
+            sheet_graf = wb["ChartData"]  # Substitua pelo nome correto
+
+            # Listas para armazenar os valores de X e Y
             x_values = []
             y_values = []
 
-            for row in sheet_graf.iter_rows(min_row=1, max_row=sheet_graf.max_row, min_col=1, max_col=2, values_only=True):
-                if row[0] is not None and row[1] is not None:
+            # Percorrer todas as linhas com dados nas colunas A (X) e B (Y)
+            for row in sheet_graf.iter_rows(min_row=1, max_row=sheet_graf.max_row, min_col=1, max_col=2,
+                                            values_only=True):
+                if row[0] is not None and row[1] is not None:  # Verifica se os valores não estão vazios
                     x_values.append(row[0])
                     y_values.append(row[1])
 
-            # Criar e salvar o gráfico
+            # Criar o gráfico com Matplotlib
             plt.figure(figsize=(6, 4))
             plt.plot(x_values, y_values, marker="o", linestyle="-", color="b")
             plt.xlabel("Tempo (ms)")
             plt.ylabel("Intensidade (%)")
             plt.grid(True)
+
+            # Salvar o gráfico como imagem
             plt.savefig(img_path)
             plt.close()
-            progress_bar.progress(60)
+
+            print("Gráfico gerado e salvo com sucesso!")
+
+            progress_bar.progress(60)  # Atualiza a barra de progresso
 
             # Abrir o documento Word e substituir os textos
             doc = Document(word_path)
@@ -102,12 +110,17 @@ if uploaded_excel and uploaded_word:
                 for key, value in data.items():
                     replace_text_keep_format(paragraph, key, value)
 
+                # Inserir o gráfico somente se ele foi exportado corretamente
                 if 'INSERIR_GRAFICO' in paragraph.text:
-                    paragraph.text = paragraph.text.replace('INSERIR_GRAFICO', '')
-                    run = paragraph.add_run()
-                    run.add_picture(img_path, width=Inches(2.5))
-                    break
-            progress_bar.progress(80)
+                    # Substituir o termo "INSERIR_GRAFICO" pelo gráfico
+                    paragraph.text = paragraph.text.replace('INSERIR_GRAFICO', '')  # Remove o marcador
+
+                    # Inserir a imagem logo após remover o termo
+                    run = paragraph.add_run()  # Cria um 'run' no mesmo parágrafo
+                    run.add_picture(img_path, width=Inches(2.5))  # Insere a imagem
+                    break  # Interrompe o loop após inserir a imagem
+
+            progress_bar.progress(80)  # Atualiza a barra de progresso
 
             # Salvar o novo documento
             doc.save(output_word_path)
@@ -115,17 +128,13 @@ if uploaded_excel and uploaded_word:
             # Disponibilizar para download
             with open(output_word_path, "rb") as f:
                 st.download_button("Baixar Documento Atualizado", f, file_name=f"{data['NOME1']}.docx")
-            progress_bar.progress(100)
+            progress_bar.progress(100)  # Atualiza a barra de progresso
 
         finally:
-            # Fechar processos e limpar arquivos temporários
-            try:
-                xw.App().quit()
-            except NameError:
-                pass
-
+            # Pequena pausa para garantir que o sistema libere o arquivo
             time.sleep(1)
 
+            # Remover apenas os arquivos temporários, mantendo o gráfico
             for file in [excel_path, word_path, output_word_path, img_path]:
                 if os.path.exists(file):
                     try:
